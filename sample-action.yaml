@@ -1,0 +1,62 @@
+name: Test PASM Vault Action with UserPass Auth
+
+on:
+  workflow_dispatch:  # Allow manual trigger
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/workflows/test-pasm-vault-userpass.yml'
+
+jobs:
+  test-vault-userpass-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      # Debug step to check if secrets exist (without exposing values)
+      - name: Debug - Check Secrets Availability
+        run: |
+          echo "VAULT_USERNAME secret exists: ${{ secrets.VAULT_USERNAME != '' }}"
+          echo "VAULT_PASSWORD secret exists: ${{ secrets.VAULT_PASSWORD != '' }}"
+          echo "Other required secrets exist: ${{ secrets.BASE_URL != '' && secrets.VAULT_UID != '' && secrets.BOX_ID != '' && secrets.SECRET_ID != '' }}"
+      
+      - name: Fetch secret using username/password authentication
+        id: fetch-secret
+        uses: sunithkumarp-entrust/demo-pasm-vault-action@main
+        with:
+          base_url: ${{ secrets.BASE_URL }}
+          auth_type: 'userpass'
+          username: ${{ secrets.VAULT_USERNAME }}
+          password: ${{ secrets.VAULT_PASSWORD }}
+          vault_uid: ${{ secrets.VAULT_UID }}
+          ca_cert: ${{ secrets.CA_CERT }}
+          secrets: |
+            secret.env.Box1.accessKey | AWS_ACCESS_KEY_ID;
+            secret.file.Box1.privateKey | /tmp/private_key.pem;
+        continue-on-error: true
+        
+      - name: Check Authentication Status
+        run: |
+          if [[ "${{ steps.fetch-secret.outcome }}" == "failure" ]]; then
+            echo "::error::Authentication failed. Please check your credentials."
+            echo "Make sure VAULT_USERNAME and VAULT_PASSWORD secrets are configured correctly."
+            echo "Verify that these secrets are set in the repository settings (not in CodeSpaces)."
+            echo "Path: Repository Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          
+      - name: Verify secret was retrieved
+        if: steps.fetch-secret.outcome == 'success'
+        run: |
+          echo "Secret was successfully retrieved: ${{ steps.fetch-secret.outputs.secret != '' }}"
+
+      - name: Display the secret (for testing only)
+        if: steps.fetch-secret.outputs.secret != '' && steps.fetch-secret.outcome == 'success'
+        run: |
+          # Display the actual secret for testing purposes
+          echo "Retrieved secret value: ${{ steps.fetch-secret.outputs.secret }}"
+          SECRET_LENGTH=$(echo "${{ steps.fetch-secret.outputs.secret }}" | wc -c)
+          echo "Secret length: $SECRET_LENGTH characters"

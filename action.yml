@@ -20,15 +20,9 @@ inputs:
   vault_uid:
     description: 'Vault UID for login'
     required: false
-  box_id:
-    description: 'The box ID to fetch the secret from'
+  secrets:
+    description: 'Multi-line string mapping output type, box name, and secret name to environment variable or file path'
     required: true
-  secret_id:
-    description: 'The secret ID to fetch'
-    required: true
-  ca_cert:
-    description: 'The CA certificate for SSL verification'
-    required: false
 outputs:
   secret:
     description: 'The fetched secret'

@@ -12,16 +12,10 @@ async function run() {
   let tempCertPath = null;
   
   try {
-    // Get inputs
     const baseUrl = core.getInput('base_url', { required: true });
-    const boxId = core.getInput('box_id', { required: true });
-    const secretId = core.getInput('secret_id', { required: true });
     const caCert = core.getInput('ca_cert');
-
-    core.info(`Fetching secret: ${secretId} from box: ${boxId}`);
-    
-    // Start measuring time
-    const startTime = Date.now();
+    const secretsInput = core.getInput('secrets', { required: true });
+    core.info(`Parsing secrets: ${secretsInput}`);
 
     // Create https agent with CA cert if provided
     let httpsAgent = undefined;
@@ -48,59 +42,16 @@ async function run() {
       timeout: 10000
     });
 
-    // Fetch secret from vault
-    try {
-      core.info(`Making API request to: ${baseUrl}${checkoutSecretAPI}`);
-      
-      const requestData = {
-        "box_id": boxId,
-        "secret_id": secretId
-      };
-      
-      // Get authentication headers
-      const authHeaders = await authenticator.getAuthHeaders();
-      
-      const config = {
-        headers: authHeaders,
-        httpsAgent: httpsAgent,
-        timeout: 10000 // 10 second timeout
-      };
-      
-      const response = await axios.post(
-        baseUrl + checkoutSecretAPI, 
-        requestData, 
-        config
-      );
-      
-      if (!response.data) {
-        throw new Error('Empty response received from API');
-      }
-      
-      const secretValue = response.data.secret_data;
-      if (!secretValue) {
-        throw new Error(`Secret data not found in response: ${JSON.stringify(response.data)}`);
-      }
+    // Parse secrets from input
+    for (const { outputType, boxName, secretName, destination } of parseSecrets(secretsInput)) {
+      core.info(`Fetching secret: ${secretName} from box: ${boxName}`);
+      const secretValue = await fetchSecretFromVault(boxName, secretName, authenticator, baseUrl, httpsAgent);
 
-      // Output the secret
-      core.setOutput('secret', secretValue);
-      core.setSecret(secretValue);
-      
-      const endTime = Date.now();
-      core.info(`Secret fetched successfully in ${endTime - startTime}ms`);
-      
-      return secretValue; // Return for testing purposes
-    } catch (error) {
-      core.error(`API Error Details: ${error.message}`);
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        core.error(`Status: ${error.response.status}`);
-        core.error(`Response headers: ${JSON.stringify(error.response.headers)}`);
-        core.error(`Response data: ${JSON.stringify(error.response.data || {})}`);
-      } else if (error.request) {
-        // The request was made but no response was received
-        core.error('No response received from server');
+      if (outputType === 'env') {
+        core.exportVariable(destination, secretValue);
+      } else if (outputType === 'file') {
+        fs.writeFileSync(destination, secretValue);
       }
-      throw new Error(`Failed to fetch secret: ${error.message}`);
     }
   } catch (error) {
     core.setFailed(error.message);
@@ -115,6 +66,45 @@ async function run() {
         core.error(`Failed to clean up temporary certificate file: ${err.message}`);
       }
     }
+  }
+}
+
+// Minimal parser for "secret.env.Box1.accessKey: AWS_ACCESS_KEY_ID"
+function *parseSecrets(secretsStr) {
+  const entries = secretsStr.split(';');
+  for (const entry of entries) {
+    const trimmedEntry = entry.trim();
+    if (!trimmedEntry) continue;
+    
+    const [key, val] = trimmedEntry.split('|').map(s => s.trim());
+    // key format: secret.<outputType>.<boxName>.<secretName>
+    const parts = key.split('.');
+    if (parts.length === 4 && parts[0] === 'secret') {
+      const [, outputType, boxName, secretName] = parts;
+      yield { outputType, boxName, secretName, destination: val };
+    }
+  }
+}
+
+async function fetchSecretFromVault(boxName, secretName, authenticator, baseUrl, httpsAgent) {
+  try {
+    const authHeaders = await authenticator.getAuthHeaders();
+    const config = { headers: authHeaders, httpsAgent, timeout: 10000 };
+    const response = await axios.post(
+      `${baseUrl}${checkoutSecretAPI}`,
+      { box_id: boxName, secret_id: secretName },
+      config
+    );
+    if (!response.data) {
+      throw new Error('Empty response received from API');
+    }
+    const secretValue = response.data.secret_data;
+    if (!secretValue) {
+      throw new Error(`Secret data not found in response: ${JSON.stringify(response.data)}`);
+    }
+    return secretValue;
+  } catch (error) {
+    throw new Error(`Failed to fetch secret: ${error.message}`);
   }
 }
 
