@@ -44,17 +44,17 @@ Add the Secret-Vault-Action to your GitHub Actions workflow:
 Secrets are specified in the format:
 
 ```
-secret.<boxName>.<secretName> | <environment_varible_name>
+secret.<boxName>.<secretName> | <environment_variable_name>
 ```
 
 Where:
 - `boxName`: The name of the box/collection containing the secret
 - `secretName`: The name of the secret to retrieve
-- `destination`: For `env` type, the name of the environment variable; for `file` type, the path to write the secret to
+- `destination`: The name of the environment variable to store the secret value.
 
 ### Recommended: Environment Variables Approach
 
-The safest way to use this action is to export secrets as environment variables and then manually create any files you need:
+The safest way to use this action is to export secrets as environment variables.
 
 ```yaml
 name: Deploy Application
@@ -101,22 +101,6 @@ jobs:
           shred -u ./ssh/id_rsa || rm -f ./ssh/id_rsa
           rm -f ./ssl/certificate.pem
           rmdir ./ssh ./ssl
-```
-
-### Alternative: Direct File Output
-
-You can also configure the action to write secrets directly to files, though this approach requires careful management of file permissions and cleanup:
-
-```yaml
-- name: Fetch secrets from vault
-  id: fetch-secrets
-  uses: entrust/secret-vault-action@v1
-  with:
-    base_url: ${{ secrets.VAULT_URL }}
-    # ...other authentication params...
-    secrets: |
-      secret.file.SSH.privateKey | ./ssh/id_rsa
-      secret.file.Certificates.sslCert | ./ssl/certificate.pem
 ```
 
 ## Security Best Practices

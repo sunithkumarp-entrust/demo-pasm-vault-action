@@ -34,8 +34,8 @@ jobs:
           vault_uid: ${{ secrets.VAULT_UID }}
           ca_cert: ${{ secrets.CA_CERT }}
           secrets: |
-            secret.env.Box1.accessKey | AWS_ACCESS_KEY_ID;
-            secret.file.Box1.privateKey | /tmp/private_key.pem;
+            secret.Box1.accessKey | AWS_ACCESS_KEY_ID;
+            secret.Box1.privateKey | /tmp/private_key.pem;
         continue-on-error: true
         
       - name: Check Authentication Status

@@ -17,6 +17,13 @@ inputs:
   password:
     description: 'Password for userpass authentication'
     required: false
+  tls_verify_skip: 
+    description: 'Skip TLS verification (true/false)'
+    required: false
+    default: false
+  ca_cert:
+    description: 'Base64 encoded CA certificate'
+    required: false
   vault_uid:
     description: 'Vault UID for login, required for userpass authentication'
     required: false
